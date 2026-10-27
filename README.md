@@ -5,10 +5,15 @@
 - 主线目标环境：**Minecraft Java 26.3 + Fabric Loader 0.20.1 + fabric-api 0.165.0+26.3 + Java 25**
 - 核心手段：扫描已启用材质包，仅对超过 `maxEdge` 的纹理做降采样，产物写进一个**优先级最低**的 `trit-optimized` 资源包（只覆盖超限纹理，其余仍由你的原包提供）
 - 运行时开关：**K 键**（开/关优化包；已处于目标状态时按 K 不会触发整包重载，开关更快）
-- 强度档位：**G 键**循环切换 `standard(256) → strong(128) → extreme(32) → standard`。
+- 强度档位：**G 键**循环切换 `standard(256) → strong(128) → extreme(32) → standard`（仅 `own` 路线下生效）。
   `extreme(32)` 才会缩小原生 64×64 纹理（更省显存但更糊）；`standard/strong` 只压超过该边长的纹理，
   对原生 64x 包无影响，但启用高清包（如 512x/8K）时会立刻压其大图。
-- 配置：`config/trit-texture.json`（`enabled` / `strength` / `maxEdge`）
+- GPU 后端路线：**U 键**循环切换 `own → nvidia → standard → own`，真实改变降采样行为：
+  - `own`（默认）= 自己的内核路线，强度由 G 键决定（256/128/32），对应 `trit-mc-mod` 的通用 GLSL 内核
+  - `nvidia` = 英伟达路线，固定激进 32px，对应 `trit/crates/trit-gpu` 在 RTX 4060 Ti 上的 WGSL 内核
+  - `standard` = 标准路线，固定 256px（最保守）
+  - 注：真 GPU 内核（GLSL/WGSL）尚未接入 26.3 渲染管线，U 键当前是「后端选择层」，每档真实改变降采样强度，并为将来真内核切换预留 `gpuBackend` 配置。
+- 配置：`config/trit-texture.json`（`enabled` / `strength` / `maxEdge` / `gpuBackend`）
 - 纹理容器：TTX/TTX2 三值块压缩（4×8 块，每纹素 1 trit），用于缓存与 GPU 直采样路径
 
 ## 目录
