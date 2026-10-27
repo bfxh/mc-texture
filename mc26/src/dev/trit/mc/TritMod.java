@@ -46,17 +46,37 @@ public final class TritMod implements ClientModInitializer {
     /** 开关：true = 用优化后的材质包副本。 */
     private static boolean enabled = true;
 
-    /** 降采样档位：纹理最长边上限。256 = 512x 的材质包压到 256x（atlas 回落，显存省约 4~16×）。 */
-    private static int maxEdge = 256;
+    /** 降采样档位：纹理最长边上限（由后端路线 + 强度共同解析，见 resolveMaxEdge）。 */
+    private static int maxEdge = 128;
 
-    /** 强度预设：名字 + 对应 maxEdge。按 G 键循环切换，满足"我想选择加强"。 */
+    /** 强度预设：名字 + 对应 maxEdge。按 G 键循环切换，满足"我想选择加强"。仅在 own 路线下生效。 */
     private static final String[] STRENGTH_NAMES = {"standard", "strong", "extreme"};
     private static final int[] STRENGTH_EDGES = {256, 128, 32};
     private static int strengthIndex = 1;   // 默认 strong（用户选择"加强"）
 
+    /**
+     * GPU 后端路线（U 键循环切换）：
+     *   own     = 自己的内核路线（TTX 容器 + 强度可调），对应 trit-mc-mod 的通用 GLSL 内核
+     *   nvidia  = 英伟达路线（固定激进 32px），对应 trit-gpu 在 RTX 4060 Ti 上的 WGSL 内核
+     *   standard= 标准路线（固定 256px，最保守）
+     * 注：真 GPU 内核（GLSL/WGSL）尚未接入 26.3 渲染管线，这里先落地"后端选择层"，
+     *     每档真实改变降采样行为，并为将来真内核切换预留 gpuBackend 配置。
+     */
+    private static final String[] BACKEND_NAMES = {"own", "nvidia", "standard"};
+    private static final int[] BACKEND_EDGE = {-1, 32, 256}; // -1=用 strength；其余为固定 maxEdge
+    private static int backendIndex = 0;   // 默认 own（自己的内核路线）
+
     private static KeyMapping toggleKey;
     private static KeyMapping strengthKey;
+    private static KeyMapping backendKey;
     private static volatile boolean applying = false;
+
+    /** 由 backend + strength 解析出实际 maxEdge。 */
+    private static int resolveMaxEdge() {
+        int ov = BACKEND_EDGE[backendIndex];
+        return ov >= 0 ? ov : STRENGTH_EDGES[strengthIndex];
+    }
+    private static void refreshMaxEdge() { maxEdge = resolveMaxEdge(); }
 
     @Override
     public void onInitializeClient() {
@@ -68,16 +88,20 @@ public final class TritMod implements ClientModInitializer {
         strengthKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
             "key.trit.strength", InputConstants.Type.KEYBOARD, InputConstants.KEY_G,
             KeyMapping.Category.MISC));
+        backendKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+            "key.trit.backend", InputConstants.Type.KEYBOARD, InputConstants.KEY_U,
+            KeyMapping.Category.MISC));
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (toggleKey.consumeClick()) setEnabled(client, !enabled);
             if (strengthKey.consumeClick()) cycleStrength(client);
+            if (backendKey.consumeClick()) cycleBackend(client);
         });
 
         ClientLifecycleEvents.CLIENT_STARTED.register(TritMod::syncOnStartup);
 
-        LOG.info("[trit] MC 26.3 版已加载；K 键开关 / G 键切换强度；强度 {} (maxEdge={})；当前={}",
-            STRENGTH_NAMES[strengthIndex], maxEdge, enabled ? "开" : "关");
+        LOG.info("[trit] MC 26.3 版已加载；K 开关 / G 强度 / U 内核路线；路线 {} / 强度 {} (maxEdge={})；当前={}",
+            BACKEND_NAMES[backendIndex], STRENGTH_NAMES[strengthIndex], maxEdge, enabled ? "开" : "关");
     }
 
     // ------------------------------------------------------------------
@@ -159,14 +183,19 @@ public final class TritMod implements ClientModInitializer {
 
     /**
      * 循环切换强度预设（G 键）：standard(256) -> strong(128) -> extreme(32) -> standard。
-     * 改变 maxEdge 会触发优化包按新档位重建（fingerprint 含 maxEdge），
-     * 重建后重载资源使新档位生效。
+     * 仅在 own 路线下改变 maxEdge；nvidia/standard 路线强度固定，切了也没用（会提示）。
      */
     private static void cycleStrength(Minecraft client) {
         if (applying) return;
         strengthIndex = (strengthIndex + 1) % STRENGTH_NAMES.length;
-        maxEdge = STRENGTH_EDGES[strengthIndex];
+        refreshMaxEdge();
         saveConfig();
+
+        if (backendIndex != 0) {
+            notify(client, Component.literal("Trit 强度：" + STRENGTH_NAMES[strengthIndex]
+                + "（仅 own 路线生效；当前 " + BACKEND_NAMES[backendIndex] + " 强度固定）"));
+            return;
+        }
 
         PackRepository repo = client.getResourcePackRepository();
         if (repo == null) return;
@@ -181,6 +210,38 @@ public final class TritMod implements ClientModInitializer {
         notify(client, Component.literal(
             "Trit 强度：" + STRENGTH_NAMES[strengthIndex] + "（maxEdge=" + maxEdge
                 + "）。注：64x 包要压到 extreme(32) 才会缩小原生 64px 纹理（会变糊）"));
+    }
+
+    /**
+     * 循环切换 GPU 后端路线（U 键）：own -> nvidia -> standard -> own。
+     * 每档真实改变降采样 maxEdge：
+     *   own     = 用当前强度 256/128/32（自己的 TTX 内核路线，强度可调）
+     *   nvidia  = 固定激进 32px（英伟达路线）
+     *   standard= 固定 256px（标准路线，最保守）
+     * 触发优化包按新路线重建并重载。
+     */
+    private static void cycleBackend(Minecraft client) {
+        if (applying) return;
+        backendIndex = (backendIndex + 1) % BACKEND_NAMES.length;
+        refreshMaxEdge();
+        saveConfig();
+
+        PackRepository repo = client.getResourcePackRepository();
+        if (repo == null) return;
+        Path gameDir = client.getResourcePackDirectory().getParent();
+        if (gameDir == null) gameDir = FabricLoader.getInstance().getGameDir();
+
+        PackOptimizer.Report rep = PackOptimizer.ensure(gameDir, maxEdge,
+            new ArrayList<>(repo.getSelectedIds()));
+        if (rep.result == PackOptimizer.Result.REBUILT) repo.reload();
+
+        if (enabled) applySelection(client, repo, true);
+        String detail = backendIndex == 0
+            ? "（自己的 TTX 路线，强度 " + STRENGTH_NAMES[strengthIndex] + "）"
+            : backendIndex == 1 ? "（英伟达激进 32px）" : "（标准 256px）";
+        notify(client, Component.literal(
+            "Trit 内核路线：" + BACKEND_NAMES[backendIndex] + detail
+                + "。注：真 GPU 内核(GLSL/WGSL)尚未接入 26.3，当前为后端选择层"));
     }
 
     /** 真正改动启用集并重载。列表末尾 = 最高优先级（1.21.4 已实测，26.3 同构）。 */
@@ -263,7 +324,14 @@ public final class TritMod implements ClientModInitializer {
                 }
             }
             if (idx >= 0) strengthIndex = idx;
-            maxEdge = STRENGTH_EDGES[strengthIndex];
+
+            int bi = s.indexOf("\"gpuBackend\":");
+            if (bi >= 0) {
+                for (int n = 0; n < BACKEND_NAMES.length; n++) {
+                    if (s.contains("\"" + BACKEND_NAMES[n] + "\"")) { backendIndex = n; break; }
+                }
+            }
+            refreshMaxEdge();
         } catch (IOException e) {
             LOG.warn("[trit] 读取配置失败，用默认：开 + strong(128)", e);
         }
@@ -274,7 +342,7 @@ public final class TritMod implements ClientModInitializer {
             Files.createDirectories(CONFIG_PATH.getParent());
             Files.writeString(CONFIG_PATH,
                 "{\"enabled\":" + enabled + ",\"strength\":\"" + STRENGTH_NAMES[strengthIndex]
-                    + "\",\"maxEdge\":" + maxEdge + "}\n",
+                    + "\",\"maxEdge\":" + maxEdge + ",\"gpuBackend\":\"" + BACKEND_NAMES[backendIndex] + "\"}\n",
                 StandardCharsets.UTF_8);
         } catch (IOException e) {
             LOG.warn("[trit] 写入配置失败（本次切换不持久化）", e);
