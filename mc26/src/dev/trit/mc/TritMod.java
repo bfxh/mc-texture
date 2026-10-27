@@ -49,7 +49,13 @@ public final class TritMod implements ClientModInitializer {
     /** 降采样档位：纹理最长边上限。256 = 512x 的材质包压到 256x（atlas 回落，显存省约 4~16×）。 */
     private static int maxEdge = 256;
 
+    /** 强度预设：名字 + 对应 maxEdge。按 G 键循环切换，满足"我想选择加强"。 */
+    private static final String[] STRENGTH_NAMES = {"standard", "strong", "extreme"};
+    private static final int[] STRENGTH_EDGES = {256, 128, 32};
+    private static int strengthIndex = 1;   // 默认 strong（用户选择"加强"）
+
     private static KeyMapping toggleKey;
+    private static KeyMapping strengthKey;
     private static volatile boolean applying = false;
 
     @Override
@@ -59,15 +65,19 @@ public final class TritMod implements ClientModInitializer {
         toggleKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
             "key.trit.toggle", InputConstants.Type.KEYBOARD, InputConstants.KEY_K,
             KeyMapping.Category.MISC));
+        strengthKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+            "key.trit.strength", InputConstants.Type.KEYBOARD, InputConstants.KEY_G,
+            KeyMapping.Category.MISC));
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (toggleKey.consumeClick()) setEnabled(client, !enabled);
+            if (strengthKey.consumeClick()) cycleStrength(client);
         });
 
         ClientLifecycleEvents.CLIENT_STARTED.register(TritMod::syncOnStartup);
 
-        LOG.info("[trit] MC 26.3 版已加载；K 键开关；档位 maxEdge={}；当前={}",
-            maxEdge, enabled ? "开" : "关");
+        LOG.info("[trit] MC 26.3 版已加载；K 键开关 / G 键切换强度；强度 {} (maxEdge={})；当前={}",
+            STRENGTH_NAMES[strengthIndex], maxEdge, enabled ? "开" : "关");
     }
 
     // ------------------------------------------------------------------
@@ -115,6 +125,16 @@ public final class TritMod implements ClientModInitializer {
 
     private static void setEnabled(Minecraft client, boolean on) {
         if (applying) return;
+        // 幂等：已经在目标状态就不重载，避免无谓的整包重载（开关更快）
+        PackRepository repo0 = client.getResourcePackRepository();
+        if (repo0 != null) {
+            String optId = findOptId(repo0);
+            boolean selected = optId != null && repo0.getSelectedIds().contains(optId);
+            if (on == selected && enabled == on) {
+                notify(client, Component.literal("Trit 已处于" + (on ? "开" : "关") + "状态"));
+                return;
+            }
+        }
         enabled = on;
         saveConfig();
 
@@ -135,6 +155,32 @@ public final class TritMod implements ClientModInitializer {
 
         applySelection(client, repo, on);
         notify(client, Component.translatable(on ? "message.trit.on" : "message.trit.off"));
+    }
+
+    /**
+     * 循环切换强度预设（G 键）：standard(256) -> strong(128) -> extreme(32) -> standard。
+     * 改变 maxEdge 会触发优化包按新档位重建（fingerprint 含 maxEdge），
+     * 重建后重载资源使新档位生效。
+     */
+    private static void cycleStrength(Minecraft client) {
+        if (applying) return;
+        strengthIndex = (strengthIndex + 1) % STRENGTH_NAMES.length;
+        maxEdge = STRENGTH_EDGES[strengthIndex];
+        saveConfig();
+
+        PackRepository repo = client.getResourcePackRepository();
+        if (repo == null) return;
+        Path gameDir = client.getResourcePackDirectory().getParent();
+        if (gameDir == null) gameDir = FabricLoader.getInstance().getGameDir();
+
+        PackOptimizer.Report rep = PackOptimizer.ensure(gameDir, maxEdge,
+            new ArrayList<>(repo.getSelectedIds()));
+        if (rep.result == PackOptimizer.Result.REBUILT) repo.reload();
+
+        applySelection(client, repo, enabled);
+        notify(client, Component.literal(
+            "Trit 强度：" + STRENGTH_NAMES[strengthIndex] + "（maxEdge=" + maxEdge
+                + "）。注：64x 包要压到 extreme(32) 才会缩小原生 64px 纹理（会变糊）"));
     }
 
     /** 真正改动启用集并重载。列表末尾 = 最高优先级（1.21.4 已实测，26.3 同构）。 */
@@ -188,17 +234,38 @@ public final class TritMod implements ClientModInitializer {
             if (!Files.exists(CONFIG_PATH)) return;
             String s = Files.readString(CONFIG_PATH, StandardCharsets.UTF_8);
             enabled = !s.contains("\"enabled\":false") && !s.contains("\"enabled\": false");
-            int i = s.indexOf("\"maxEdge\":");
-            if (i < 0) i = s.indexOf("\"maxEdge\": ");
-            if (i >= 0) {
-                int j = i;
-                while (j < s.length() && !Character.isDigit(s.charAt(j)) && s.charAt(j) != '-') j++;
-                int k = j;
-                while (k < s.length() && Character.isDigit(s.charAt(k))) k++;
-                if (k > j) maxEdge = Integer.parseInt(s.substring(j, k));
+
+            int idx = -1;
+            int si = s.indexOf("\"strength\":");
+            if (si >= 0) {
+                for (int n = 0; n < STRENGTH_NAMES.length; n++) {
+                    if (s.contains("\"" + STRENGTH_NAMES[n] + "\"")) { idx = n; break; }
+                }
             }
+            if (idx < 0) {
+                // 兼容旧配置：按 maxEdge 反推最接近的预设
+                int i = s.indexOf("\"maxEdge\":");
+                if (i < 0) i = s.indexOf("\"maxEdge\": ");
+                if (i >= 0) {
+                    int j = i;
+                    while (j < s.length() && !Character.isDigit(s.charAt(j)) && s.charAt(j) != '-') j++;
+                    int k = j;
+                    while (k < s.length() && Character.isDigit(s.charAt(k))) k++;
+                    if (k > j) {
+                        int me = Integer.parseInt(s.substring(j, k));
+                        int best = 0, bestd = Integer.MAX_VALUE;
+                        for (int m = 0; m < STRENGTH_EDGES.length; m++) {
+                            int d = Math.abs(STRENGTH_EDGES[m] - me);
+                            if (d < bestd) { bestd = d; best = m; }
+                        }
+                        idx = best;
+                    }
+                }
+            }
+            if (idx >= 0) strengthIndex = idx;
+            maxEdge = STRENGTH_EDGES[strengthIndex];
         } catch (IOException e) {
-            LOG.warn("[trit] 读取配置失败，用默认：开 + maxEdge=256", e);
+            LOG.warn("[trit] 读取配置失败，用默认：开 + strong(128)", e);
         }
     }
 
@@ -206,7 +273,8 @@ public final class TritMod implements ClientModInitializer {
         try {
             Files.createDirectories(CONFIG_PATH.getParent());
             Files.writeString(CONFIG_PATH,
-                "{\"enabled\":" + enabled + ",\"maxEdge\":" + maxEdge + "}\n",
+                "{\"enabled\":" + enabled + ",\"strength\":\"" + STRENGTH_NAMES[strengthIndex]
+                    + "\",\"maxEdge\":" + maxEdge + "}\n",
                 StandardCharsets.UTF_8);
         } catch (IOException e) {
             LOG.warn("[trit] 写入配置失败（本次切换不持久化）", e);
