@@ -1,0 +1,18 @@
+[workspace]
+resolver = "3"
+members = ["trit-core", "trit-texture"]
+
+# 这两个 crate 从 bfxh/trit（引擎 monorepo，分支 yan/texture-optimization）原样 vendored 到本仓库，
+# 作为 MC mod 的**参考编解码器**：Java 侧 TritCodec/TritEncoder 是它的逐字节移植，
+# 因此 mod 运行时产出的 TTX2 能被这里的 Rust 精确解回（反之亦然）。
+# 上游仍是无聊真相源；本目录是 mod 项目内自带的、可独立 cargo test 的一份副本。
+# 同步规则：改了 trit-texture 的字节格式，必须同时改 mc26/ 的 Java 移植并跑跨语言比对。
+[workspace.package]
+version = "0.12.0"
+edition = "2024"
+rust-version = "1.88"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/bfxh/mc-texture"
+
+[workspace.dependencies]
+trit-core = { path = "trit-core", version = "0.12.0" }

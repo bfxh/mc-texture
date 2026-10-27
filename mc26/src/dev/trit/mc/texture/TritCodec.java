@@ -155,7 +155,7 @@ public final class TritCodec {
         int height = readU32LE(bytes, 8);
         int blocks = readU32LE(bytes, 12);
         if (width == 0 || width % BLOCK_WIDTH != 0) throw new IllegalArgumentException("TTX1 width not multiple of 4");
-        if (height == 0 || height % BLOCK_HEIGHT != 0) throw new IllegalArgumentException("TTX1 height not multiple of 10");
+        if (height == 0 || height % BLOCK_HEIGHT != 0) throw new IllegalArgumentException("TTX1 height not multiple of " + BLOCK_HEIGHT);
         int expected = (width / BLOCK_WIDTH) * (height / BLOCK_HEIGHT);
         if (blocks != expected) throw new IllegalArgumentException("TTX1 block count mismatch");
         int payload = blocks * TRIT_BLOCK_BYTES;
@@ -231,7 +231,7 @@ public final class TritCodec {
             int h = readU32LE(section, cursor + 4);
             cursor += 8;
             if (w == 0 || w % BLOCK_WIDTH != 0) throw new IllegalArgumentException("TTX2 width not multiple of 4");
-            if (h == 0 || h % BLOCK_HEIGHT != 0) throw new IllegalArgumentException("TTX2 height not multiple of 10");
+            if (h == 0 || h % BLOCK_HEIGHT != 0) throw new IllegalArgumentException("TTX2 height not multiple of " + BLOCK_HEIGHT);
             int blocks = (w / BLOCK_WIDTH) * (h / BLOCK_HEIGHT);
             int payload = blocks * TRIT_BLOCK_BYTES;
             if (cursor + payload > section.length) throw new IllegalArgumentException("TTX2 level payload truncated");

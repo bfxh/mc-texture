@@ -9,6 +9,7 @@ classes/
 .gradle/
 .tooling/
 *.class
+**/target/
 
 # Gradle 发行包（本地下载，体积大）
 tools/gradle-8.13/
