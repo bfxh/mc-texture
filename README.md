@@ -4,7 +4,11 @@
 
 - 主线目标环境：**Minecraft Java 26.3 + Fabric Loader 0.20.1 + fabric-api 0.165.0+26.3 + Java 25**
 - 核心手段：扫描已启用材质包，仅对超过 `maxEdge` 的纹理做降采样，产物写进一个**优先级最低**的 `trit-optimized` 资源包（只覆盖超限纹理，其余仍由你的原包提供）
-- 运行时开关：**K 键**
+- 运行时开关：**K 键**（开/关优化包；已处于目标状态时按 K 不会触发整包重载，开关更快）
+- 强度档位：**G 键**循环切换 `standard(256) → strong(128) → extreme(32) → standard`。
+  `extreme(32)` 才会缩小原生 64×64 纹理（更省显存但更糊）；`standard/strong` 只压超过该边长的纹理，
+  对原生 64x 包无影响，但启用高清包（如 512x/8K）时会立刻压其大图。
+- 配置：`config/trit-texture.json`（`enabled` / `strength` / `maxEdge`）
 - 纹理容器：TTX/TTX2 三值块压缩（4×8 块，每纹素 1 trit），用于缓存与 GPU 直采样路径
 
 ## 目录
