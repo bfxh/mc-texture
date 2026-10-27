@@ -1,0 +1,7 @@
+{
+  "key.category.trit": "Trit texture",
+  "key.trit.toggle": "Toggle Trit texture takeover (K)",
+  "message.trit.on": "Trit textures: on (reloading resources)",
+  "message.trit.off": "Trit textures: off (reloading resources)",
+  "message.trit.shadowed": "Trit on, but stone comes from higher-priority pack \"%s\" — in pack-priority mode trit only fills textures that pack lacks"
+}

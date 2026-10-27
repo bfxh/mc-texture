@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "trit",
+  "version": "0.2.0",
+  "name": "Trit 纹理优化（运行时材质包优化）",
+  "description": "运行时把你装的材质包降采样：512x 级别的包会把 blocks atlas 从 1024x512 撑到 4096x4096（显存 16x），本 mod 在首加载时把超限纹理压到设定档位，只把被缩小的那部分写成一个覆盖用的优化包，其余仍由你的原包提供。TTX2 用作源包的解码缓存（体积 0.28x、解码快约 8x）。K 键开关。",
+  "authors": ["bfxh"],
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["dev.trit.mc.TritMod"]
+  },
+  "depends": {
+    "fabricloader": ">=0.19.0",
+    "minecraft": ">=26.1",
+    "java": ">=25",
+    "fabric-lifecycle-events-v1": "*",
+    "fabric-key-mapping-api-v1": "*"
+  }
+}

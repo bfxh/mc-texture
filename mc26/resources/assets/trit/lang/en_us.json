@@ -1,0 +1,6 @@
+{
+  "key.trit.toggle": "Toggle Trit texture optimization (K)",
+  "message.trit.on": "Trit: on (resource packs downsampled and reloaded)",
+  "message.trit.off": "Trit: off (restored your original resource packs)",
+  "message.trit.nothing": "Trit: no texture exceeds the size limit, nothing to optimize"
+}

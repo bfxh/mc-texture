@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "trit",
+  "version": "${version}",
+  "name": "Trit Texture (纹理优化 / TTX 纹理容器)",
+  "description": "纹理优化：用 trit-texture TTX/TTX2 纹理容器组织 MC 方块贴图（albedo + labPBR 的 normal/rough/metal/ao），通过内置资源包接管原版 block 贴图。当前为『烘焙资源包接管』形态——TTX 在打包期解码为 PNG；运行时解码路线因 1.21.4 无 Supplier<ResourcePack> 重载而未启用。实测：TTX 相对 PNG 无体积优势，单层解码快约 1.44×。",
+  "authors": ["bfxh"],
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["dev.trit.mc.TritMod"]
+  },
+  "mixins": ["trit-texture.mixins.json"],
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "minecraft": "1.21.x",
+    "java": ">=21",
+    "fabric-resource-loader-v0": "*",
+    "fabric-key-binding-api-v1": "*",
+    "fabric-lifecycle-events-v1": "*"
+  }
+}

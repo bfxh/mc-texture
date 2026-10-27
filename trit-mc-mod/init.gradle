@@ -1,0 +1,12 @@
+// 仅用于本机加速依赖解析：把 Maven Central 重定向到 Aliyun 镜像。
+// 不影响交付物（不写进 build.gradle）。
+allprojects {
+    repositories {
+        all { repo ->
+            if (repo instanceof MavenArtifactRepository
+                && repo.url.toString().contains("repo.maven.apache.org")) {
+                repo.setUrl("https://maven.aliyun.com/repository/public")
+            }
+        }
+    }
+}

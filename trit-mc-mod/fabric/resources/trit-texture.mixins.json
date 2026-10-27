@@ -1,0 +1,8 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "dev.trit.mc.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [],
+  "client": []
+}

@@ -1,0 +1,7 @@
+{
+  "key.category.trit": "Trit 纹理优化",
+  "key.trit.toggle": "开关 Trit 纹理接管 (K)",
+  "message.trit.on": "Trit 纹理优化：开（已重载资源）",
+  "message.trit.off": "Trit 纹理优化：关（已重载资源）",
+  "message.trit.shadowed": "Trit 已开，但 stone 由更高优先级的「%s」提供 —— 材质包优先模式下 trit 只补它没覆盖的纹理"
+}

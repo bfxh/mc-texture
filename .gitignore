@@ -1,0 +1,38 @@
+# 构建产物（任意层级）
+build/
+out/
+out2/
+out3/
+out4/
+dist/
+classes/
+.gradle/
+.tooling/
+*.class
+
+# Gradle 发行包（本地下载，体积大）
+tools/gradle-8.13/
+tools/gradle-8.13-bin.zip
+
+# 依赖 jar（由实例 mods 解压而来）
+mc26/deps/
+mc26/cp.txt
+*.jar
+
+# 生成的纹理包 / 压缩包
+pack/
+dl/
+*.zip
+
+# 验证输出目录（只保留 .java / .py / .glsl 源码）
+**/verify/*/
+**/verify/_tmp*
+
+# 日志
+*.log
+manual-launch.log
+manual-launch.pid
+
+# 系统
+.DS_Store
+Thumbs.db

@@ -1,0 +1,6 @@
+{
+  "key.trit.toggle": "Trit 纹理优化开关 (K)",
+  "message.trit.on": "Trit 纹理优化：开（材质包已降采样重载）",
+  "message.trit.off": "Trit 纹理优化：关（已还原为你的原始材质包）",
+  "message.trit.nothing": "Trit：当前材质包没有超过档位的纹理，无需优化"
+}

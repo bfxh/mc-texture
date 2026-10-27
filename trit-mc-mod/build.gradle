@@ -1,0 +1,60 @@
+plugins {
+    id 'fabric-loom' version '1.10.1'
+    id 'maven-publish'
+}
+
+version = project.mod_version ?: "0.1.0"
+group = project.maven_group ?: "dev.trit"
+
+base {
+    archivesName = "trit-texture"
+}
+
+repositories {
+    mavenCentral()
+    maven { url "https://maven.fabricmc.net/" }
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:1.21.4"
+    mappings "net.fabricmc:yarn:1.21.4+build.8:v2"
+
+    modImplementation "net.fabricmc:fabric-loader:0.16.9"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:0.119.4+1.21.4"
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+// 复用核心解码器（dev.trit.mc.texture 包，纯 Java、无 MC 依赖）与 Mod 绑定层（dev.trit.mc 包）。
+sourceSets {
+    main {
+        java {
+            srcDirs = ['fabric/src/main/java', 'src']
+        }
+        resources {
+            srcDirs = ['fabric/resources']
+        }
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    it.options.encoding = 'UTF-8'
+}
+
+processResources {
+    inputs.property "version", project.version
+    filesMatching("fabric.mod.json") {
+        expand "version": project.version
+    }
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+        }
+    }
+}
