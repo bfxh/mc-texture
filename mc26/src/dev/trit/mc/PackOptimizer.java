@@ -139,7 +139,7 @@ public final class PackOptimizer {
     }
 
     static String fingerprint(List<SourcePack> srcs, int maxEdge) {
-        StringBuilder sb = new StringBuilder("v1|max=" + maxEdge);
+        StringBuilder sb = new StringBuilder("v2|max=" + maxEdge);  // v2: 动画纹理不再降采样，避免 NPOT 紫黑
         for (SourcePack s : srcs) {
             try {
                 sb.append('|').append(s.name).append(':');
@@ -181,11 +181,7 @@ public final class PackOptimizer {
             for (Entry e : entries(s)) {
                 String rel = e.path;                       // 形如 assets/minecraft/textures/block/stone.png
                 if (!rel.startsWith("assets/")) continue;
-                if (!rel.endsWith(".png")) {
-                    // .mcmeta（动画描述）必须跟着走，否则动画纹理会退化成静态
-                    if (rel.endsWith(".png.mcmeta")) copyEntry(s, e, optDir.resolve(rel));
-                    continue;
-                }
+                if (!rel.endsWith(".png")) continue;   // 只处理 PNG；动画/元数据由下方按"被降采样的 PNG"一并处理
                 if (isExcluded(rel)) continue;
 
                 byte[] png = readEntry(s, e);
@@ -196,6 +192,11 @@ public final class PackOptimizer {
                 int[] dim = pngSize(png);
                 boolean needDownscale = maxEdge > 0 && dim != null && Math.max(dim[0], dim[1]) > maxEdge;
                 if (!needDownscale) continue;
+
+                // 动画纹理（带含 animation 的 .png.mcmeta）不参与降采样：
+                // 缩放会破坏 NPOT / 帧布局，在 MC 的 atlas+mipmap 下渲染成紫黑块或错位。
+                // 直接交由源材质包以原尺寸提供（源多为 POT，可正常显示）。
+                if (hasAnimation(s, rel)) continue;
 
                 srcBytes += png.length;
                 downscaled++;
@@ -390,6 +391,18 @@ public final class PackOptimizer {
             return sb.toString();
         } catch (Exception e) {
             return Integer.toHexString(java.util.Arrays.hashCode(data));
+        }
+    }
+
+    /** 纹理是否带动画描述（含 animation 字段的 .png.mcmeta）。 */
+    private static boolean hasAnimation(SourcePack s, String rel) {
+        try {
+            byte[] m = readEntry(s, new Entry(rel + ".png.mcmeta"));
+            if (m == null || m.length == 0) return false;
+            String head = new String(m, 0, Math.min(m.length, 4096), StandardCharsets.UTF_8);
+            return head.contains("animation");
+        } catch (IOException ignored) {
+            return false;
         }
     }
 
