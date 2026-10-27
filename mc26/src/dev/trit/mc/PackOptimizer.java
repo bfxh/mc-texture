@@ -139,7 +139,7 @@ public final class PackOptimizer {
     }
 
     static String fingerprint(List<SourcePack> srcs, int maxEdge) {
-        StringBuilder sb = new StringBuilder("v2|max=" + maxEdge);  // v2: 动画纹理不再降采样，避免 NPOT 紫黑
+        StringBuilder sb = new StringBuilder("v3|ttx2|max=" + maxEdge);  // v3: 优化包额外落盘 .ttx2（TTX 成为运行时格式，为阶段2 GPU 直采样提供数据源）
         for (SourcePack s : srcs) {
             try {
                 sb.append('|').append(s.name).append(':');
@@ -252,6 +252,13 @@ public final class PackOptimizer {
                 outBytes += out.length;
                 textures++;
                 if (fromCache) { /* 缓存命中，省掉一次 PNG 解码 */ }
+
+                // 同时把 TTX2（多 mip）落进优化包，使 TTX 真正成为运行时格式，
+                // 为阶段 2（GPU 直采样省显存）提供数据源。MC 只认 .png，.ttx2 被忽略，不会崩。
+                try {
+                    byte[] ttx = TritEncoder.rgbaToTtx2Mipped(img.rgba, img.width, img.height);
+                    Files.write(optDir.resolve(rel + ".ttx2"), ttx);
+                } catch (Throwable ignored) { }
             }
 
             if (mcmeta == null) mcmeta = readPackMcmeta(s);
